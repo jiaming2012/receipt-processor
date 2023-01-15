@@ -4,11 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"jiaming2012/receipt-processor/database"
 	"jiaming2012/receipt-processor/models"
-	"log"
 	"math"
 	"os"
 	"strings"
@@ -34,17 +33,20 @@ func run() {
 		panic(fileErr)
 	}
 
+	db := database.GetDB()
+	defer database.ReleaseDB()
+
 	meta := models.Meta{}
-	items := make(models.Items, 0)
-	curItem := models.NewItem()
-	itemNo := uint(0)
+	purchases := make(models.Purchases, 0)
+	curPurchase := models.NewPurchase()
+	purchaseNo := uint(0)
 
 	r := bufio.NewReader(f)
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				fmt.Println("done")
+				log.Info("Finished parsing file")
 				break
 			}
 
@@ -52,15 +54,22 @@ func run() {
 		}
 
 		line = strings.Trim(line, "\n")
-		meta.ProcessLine(line)
-		err = curItem.ProcessLine(line, itemNo)
+		meta.ProcessLine(line, db)
+
+		err = curPurchase.ProcessLine(line, purchaseNo)
 		if err != nil {
 			panic(err)
 		}
-		if curItem.IsProcessed {
-			items = append(items, *curItem)
-			curItem = models.NewItem()
-			itemNo += 1
+		if curPurchase.IsProcessed {
+			item, fetchErr := models.FindOrCreateItem(curPurchase, &meta, db)
+			if fetchErr != nil {
+				log.Fatal(fetchErr)
+			}
+
+			curPurchase.ItemId = item.ID
+			purchases = append(purchases, *curPurchase)
+			curPurchase = models.NewPurchase()
+			purchaseNo += 1
 		}
 	}
 
@@ -68,16 +77,16 @@ func run() {
 		log.Fatalf("meta data not processed, %v", meta)
 	}
 
-	itemsTotal := items.Total()
-	if !almostEqual(itemsTotal, *meta.Subtotal) {
-		log.Fatalf("expected itemsTotal %f to equal receipt subtotal %f", itemsTotal, *meta.Subtotal)
+	purchasesTotal := purchases.Total()
+	if !almostEqual(purchasesTotal, *meta.Subtotal) {
+		log.Fatalf("expected purchasesTotal %f to equal receipt subtotal %f", purchasesTotal, *meta.Subtotal)
 	}
 
 	if *meta.TotalUnits+*meta.TotalCases != *meta.TotalItems {
 		log.Fatalf("expected TotalUnits %v + Total Cases %v to equal TotalItems %v", *meta.TotalUnits, *meta.TotalCases, *meta.TotalItems)
 	}
 
-	unitsCount, casesCounts := items.Count()
+	unitsCount, casesCounts := purchases.Count()
 	if unitsCount != *meta.TotalUnits {
 		log.Fatalf("expected unitsCount %v to equal TotalUnits %v", unitsCount, *meta.TotalUnits)
 	}
@@ -86,12 +95,9 @@ func run() {
 		log.Fatalf("expected casesCounts %v to equal TotalCases %v", casesCounts, *meta.TotalCases)
 	}
 
-	db := database.GetDB()
-	defer database.ReleaseDB()
-
 	var metaSaved models.Meta
 	tx := db.Find(&metaSaved).Where(models.Meta{
-		StoreName: meta.StoreName,
+		StoreId: meta.StoreId,
 	}).Updates(&meta)
 
 	if tx.Error != nil {
@@ -110,16 +116,16 @@ func run() {
 		panic(tx.Error)
 	}
 
-	for _, item := range items {
-		item.MetaId = meta.ID
+	for _, purchase := range purchases {
+		purchase.MetaId = meta.ID
 
-		tx = db.Model(models.Item{}).Where(models.Item{
+		tx = db.Model(models.Purchase{}).Where(models.Purchase{
 			MetaId:   metaId,
-			Position: item.Position,
-		}).Updates(&item)
+			Position: purchase.Position,
+		}).Updates(&purchase)
 
 		if tx.RowsAffected == 0 {
-			db.Create(&item)
+			db.Create(&purchase)
 		}
 
 		if tx.Error != nil {
@@ -127,27 +133,31 @@ func run() {
 		}
 	}
 
-	fmt.Println("itemsTotal: ", itemsTotal, " .. ", *meta.Subtotal)
+	fmt.Println("purchasesTotal: ", purchasesTotal, " .. ", *meta.Subtotal)
 	fmt.Println("meta:", meta)
 }
 
 func setupDB() {
-	logrus.Info("Setting up database ...")
+	log.Info("Setting up database ...")
 	if err := database.Setup(); err != nil {
-		logrus.Errorf("failed to setup database: %v", err)
+		log.Errorf("failed to setup database: %v", err)
 		return
 	}
 	db := database.GetDB()
 	defer database.ReleaseDB()
 
 	db.AutoMigrate(&models.Meta{})
+	db.AutoMigrate(&models.Purchase{})
 	db.AutoMigrate(&models.Item{})
+	db.AutoMigrate(&models.Store{})
 
-	logrus.Info("Db setup complete!")
+	models.PopulateItemsCache(db)
+
+	log.Info("Db setup complete!")
 }
 
 func main() {
-	logrus.Info("Receipt Processor App v0.01")
+	log.Info("Receipt Processor App v0.01")
 
 	setupDB()
 

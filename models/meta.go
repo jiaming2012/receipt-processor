@@ -9,23 +9,29 @@ import (
 
 type Meta struct {
 	gorm.Model
-	Item        Item       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	StoreName   string     `gorm:"uniqueIndex:composite;not null"`
-	Timestamp   *time.Time `gorm:"uniqueIndex:composite;not null"`
+	StoreName   string     `gorm:"-"`
+	StoreId     *uint      `gorm:"uniqueIndex:compositeMeta;not null"`
+	Timestamp   *time.Time `gorm:"uniqueIndex:compositeMeta;not null"`
 	IsProcessed bool       `gorm:"-"`
-	TotalUnits  *uint
-	TotalCases  *uint
-	TotalItems  *uint
-	Subtotal    *float64
+	TotalUnits  *uint      `gorm:"not null"`
+	TotalCases  *uint      `gorm:"not null"`
+	TotalItems  *uint      `gorm:"not null"`
+	Subtotal    *float64   `gorm:"not null"`
 }
 
-func (m *Meta) ProcessLine(line string) error {
+func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
 	if m.IsProcessed {
 		return nil
 	}
 
 	if line == "Restaurant Depot" {
 		m.StoreName = line
+
+		if store, dbErr := FindOrCreateStore(m.StoreName, db); dbErr == nil {
+			m.StoreId = &store.ID
+		} else {
+			return dbErr
+		}
 	}
 
 	if len(m.StoreName) > 0 && m.Timestamp == nil {
@@ -65,14 +71,14 @@ func (m *Meta) ProcessLine(line string) error {
 	}
 
 	if m.TotalItems == nil {
-		matches := custom.ReceiptRegex["Total Items"].FindStringSubmatch(line)
+		matches := custom.ReceiptRegex["Total Purchases"].FindStringSubmatch(line)
 		if len(matches) > 1 {
 			val, err := strconv.Atoi(matches[1])
 			if err != nil {
 				return err
 			}
-			items := uint(val)
-			m.TotalItems = &items
+			purchases := uint(val)
+			m.TotalItems = &purchases
 		}
 	}
 
@@ -87,7 +93,7 @@ func (m *Meta) ProcessLine(line string) error {
 		}
 	}
 
-	if m.Timestamp != nil && m.TotalUnits != nil && m.TotalItems != nil && m.TotalCases != nil && m.Subtotal != nil {
+	if m.Timestamp != nil && m.TotalUnits != nil && m.TotalItems != nil && m.TotalCases != nil && m.Subtotal != nil && m.StoreId != nil {
 		m.IsProcessed = true
 	}
 
