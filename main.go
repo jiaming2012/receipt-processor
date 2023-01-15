@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"jiaming2012/receipt-processor/database"
@@ -46,7 +45,7 @@ func run() {
 		line, err := r.ReadString('\n')
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				log.Info("Finished parsing file")
+				log.Info("Finished parsing receipt")
 				break
 			}
 
@@ -133,8 +132,7 @@ func run() {
 		}
 	}
 
-	fmt.Println("purchasesTotal: ", purchasesTotal, " .. ", *meta.Subtotal)
-	fmt.Println("meta:", meta)
+	log.Info("New receipt processed: ", meta)
 }
 
 func setupDB() {

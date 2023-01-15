@@ -1,7 +1,6 @@
 package models
 
 import (
-	"fmt"
 	"gorm.io/gorm"
 )
 
@@ -22,8 +21,6 @@ func FindOrCreateStore(name string, db *gorm.DB) (*Store, error) {
 			}
 		}
 	}
-
-	fmt.Println(store)
 
 	return &store, nil
 }

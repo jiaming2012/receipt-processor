@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"gorm.io/gorm"
 	"jiaming2012/receipt-processor/custom"
 	"strconv"
@@ -17,6 +18,10 @@ type Meta struct {
 	TotalCases  *uint      `gorm:"not null"`
 	TotalItems  *uint      `gorm:"not null"`
 	Subtotal    *float64   `gorm:"not null"`
+}
+
+func (m Meta) String() string {
+	return fmt.Sprintf("%s: %v items for $%v", m.StoreName, *m.TotalItems, *m.Subtotal)
 }
 
 func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
