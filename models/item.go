@@ -3,19 +3,23 @@ package models
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
 type Item struct {
-	buffer      []string
+	gorm.Model
+	buffer      []string `gorm:"-"`
 	IsCase      bool
 	Price       float64
 	Quantity    uint
 	Description string
-	IsProcessed bool
+	IsProcessed bool `gorm:"-"`
 	SKU         string
+	MetaId      uint
+	Position    uint
 }
 
 type Items []Item
@@ -48,12 +52,13 @@ func (i Item) String() string {
 	return fmt.Sprintf("%s (%d, %s) = $%.2f", i.Description, i.Quantity, i.SKU, i.Price)
 }
 
-func (i *Item) ProcessLine(line string) error {
+func (i *Item) ProcessLine(line string, position uint) error {
 	re := regexp.MustCompile(`(?:(?:CASES)\s(\d+)\s)?(?:UNITS)\s(\d+)`)
 
 	if re.MatchString(line) {
 		buf := formatBuffer(i.buffer)
 		i.Description = buf[0]
+		i.Position = position
 
 		dollarSignIndex := strings.LastIndex(buf[1], "$")
 		if dollarSignIndex < 0 {

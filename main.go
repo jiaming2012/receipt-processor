@@ -9,6 +9,7 @@ import (
 	"jiaming2012/receipt-processor/database"
 	"jiaming2012/receipt-processor/models"
 	"log"
+	"math"
 	"os"
 	"strings"
 )
@@ -21,15 +22,22 @@ func printArray(data []string) string {
 	return data[0] + " >> " + printArray(data[1:])
 }
 
+const float64EqualityThreshold = 1e-9
+
+func almostEqual(a, b float64) bool {
+	return math.Abs(a-b) <= float64EqualityThreshold
+}
+
 func run() {
-	f, err := os.Open("receipts/unprocessed/3.txt")
-	if err != nil {
-		panic(err)
+	f, fileErr := os.Open("receipts/unprocessed/3.txt")
+	if fileErr != nil {
+		panic(fileErr)
 	}
 
 	meta := models.Meta{}
 	items := make(models.Items, 0)
 	curItem := models.NewItem()
+	itemNo := uint(0)
 
 	r := bufio.NewReader(f)
 	for {
@@ -45,13 +53,14 @@ func run() {
 
 		line = strings.Trim(line, "\n")
 		meta.ProcessLine(line)
-		err = curItem.ProcessLine(line)
+		err = curItem.ProcessLine(line, itemNo)
 		if err != nil {
 			panic(err)
 		}
 		if curItem.IsProcessed {
 			items = append(items, *curItem)
 			curItem = models.NewItem()
+			itemNo += 1
 		}
 	}
 
@@ -60,7 +69,7 @@ func run() {
 	}
 
 	itemsTotal := items.Total()
-	if itemsTotal != *meta.Subtotal {
+	if !almostEqual(itemsTotal, *meta.Subtotal) {
 		log.Fatalf("expected itemsTotal %f to equal receipt subtotal %f", itemsTotal, *meta.Subtotal)
 	}
 
@@ -77,6 +86,47 @@ func run() {
 		log.Fatalf("expected casesCounts %v to equal TotalCases %v", casesCounts, *meta.TotalCases)
 	}
 
+	db := database.GetDB()
+	defer database.ReleaseDB()
+
+	var metaSaved models.Meta
+	tx := db.Find(&metaSaved).Where(models.Meta{
+		StoreName: meta.StoreName,
+	}).Updates(&meta)
+
+	if tx.Error != nil {
+		panic(tx.Error)
+	}
+
+	var metaId uint
+	if tx.RowsAffected == 0 {
+		db.Create(&meta)
+		metaId = meta.Model.ID
+	} else {
+		metaId = metaSaved.Model.ID
+	}
+
+	if tx.Error != nil {
+		panic(tx.Error)
+	}
+
+	for _, item := range items {
+		item.MetaId = meta.ID
+
+		tx = db.Model(models.Item{}).Where(models.Item{
+			MetaId:   metaId,
+			Position: item.Position,
+		}).Updates(&item)
+
+		if tx.RowsAffected == 0 {
+			db.Create(&item)
+		}
+
+		if tx.Error != nil {
+			panic(tx.Error)
+		}
+	}
+
 	fmt.Println("itemsTotal: ", itemsTotal, " .. ", *meta.Subtotal)
 	fmt.Println("meta:", meta)
 }
@@ -88,9 +138,11 @@ func setupDB() {
 		return
 	}
 	db := database.GetDB()
+	defer database.ReleaseDB()
+
 	db.AutoMigrate(&models.Meta{})
 	db.AutoMigrate(&models.Item{})
-	database.ReleaseDB()
+
 	logrus.Info("Db setup complete!")
 }
 

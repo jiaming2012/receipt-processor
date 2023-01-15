@@ -8,12 +8,12 @@ import (
 	"sync"
 )
 
-var db *gorm.DB
+var _db *gorm.DB
 var mutex sync.Mutex
 
 func Setup() error {
 	var err error
-	db, err = gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{})
+	_db, err = gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{})
 	if err != nil {
 		return err
 	}
@@ -23,7 +23,7 @@ func Setup() error {
 
 func GetDB() *gorm.DB {
 	mutex.Lock()
-	return db
+	return _db
 }
 
 func ReleaseDB() {

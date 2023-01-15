@@ -1,15 +1,18 @@
 package models
 
 import (
+	"gorm.io/gorm"
 	"jiaming2012/receipt-processor/custom"
 	"strconv"
 	"time"
 )
 
 type Meta struct {
-	StoreName   string
-	Timestamp   *time.Time
-	IsProcessed bool
+	gorm.Model
+	Item        Item       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	StoreName   string     `gorm:"uniqueIndex:composite;not null"`
+	Timestamp   *time.Time `gorm:"uniqueIndex:composite;not null"`
+	IsProcessed bool       `gorm:"-"`
 	TotalUnits  *uint
 	TotalCases  *uint
 	TotalItems  *uint
