@@ -86,25 +86,34 @@ func run() {
 	}
 
 	unitsCount, casesCounts := purchases.Count()
-	if unitsCount != *meta.TotalUnits {
+	if unitsCount != int(*meta.TotalUnits) {
 		log.Fatalf("expected unitsCount %v to equal TotalUnits %v", unitsCount, *meta.TotalUnits)
 	}
 
-	if casesCounts != *meta.TotalCases {
+	if casesCounts != int(*meta.TotalCases) {
 		log.Fatalf("expected casesCounts %v to equal TotalCases %v", casesCounts, *meta.TotalCases)
 	}
 
 	var metaSaved models.Meta
 	tx := db.Find(&metaSaved).Where(models.Meta{
-		StoreId: meta.StoreId,
-	}).Updates(&meta)
+		StoreId:   meta.StoreId,
+		Timestamp: meta.Timestamp,
+	})
+
+	if tx.Error != nil {
+		panic(tx.Error)
+	}
+
+	rowsAffected := tx.RowsAffected
+
+	tx = tx.Updates(&meta)
 
 	if tx.Error != nil {
 		panic(tx.Error)
 	}
 
 	var metaId uint
-	if tx.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		db.Create(&meta)
 		metaId = meta.Model.ID
 	} else {
@@ -156,8 +165,6 @@ func setupDB() {
 
 func main() {
 	log.Info("Receipt Processor App v0.01")
-
 	setupDB()
-
 	run()
 }

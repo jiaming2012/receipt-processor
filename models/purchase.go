@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	"jiaming2012/receipt-processor/custom"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ type Purchase struct {
 	buffer      []string    `gorm:"-"`
 	IsCase      bool        `gorm:"not null"`
 	Price       float64     `gorm:"not null"`
-	Quantity    uint        `gorm:"not null"`
+	Quantity    int         `gorm:"not null"`
 	Description Description `gorm:"-"`
 	IsProcessed bool        `gorm:"-"`
 	SKU         SKU         `gorm:"-"`
@@ -34,9 +35,9 @@ func (purchases Purchases) Total() float64 {
 }
 
 // Count returns a tuple, which shows a count of (units, cases)
-func (purchases Purchases) Count() (uint, uint) {
-	var units uint = 0
-	var cases uint = 0
+func (purchases Purchases) Count() (int, int) {
+	var units int = 0
+	var cases int = 0
 
 	for _, i := range purchases {
 		if i.IsCase {
@@ -54,7 +55,7 @@ func (i Purchase) String() string {
 }
 
 func (i *Purchase) ProcessLine(line string, position uint) error {
-	re := regexp.MustCompile(`(?:(?:CASES)\s(\d+)\s)?(?:UNITS)\s(\d+)`)
+	re := custom.ReceiptRegex["Purchase Delimiter"]
 
 	if re.MatchString(line) {
 		buf := formatBuffer(i.buffer)
@@ -62,8 +63,10 @@ func (i *Purchase) ProcessLine(line string, position uint) error {
 		i.Position = position
 
 		dollarSignIndex := strings.LastIndex(buf[1], "$")
+		isVoid := strings.LastIndex(buf[1], "-$") >= 0
+
 		if dollarSignIndex < 0 {
-			log.Fatalf("expected to find $ on %s", buf[1])
+			log.Fatalf("expected to find $ on %s. Check that the $ is not accidently on the item description line", buf[1])
 		}
 
 		data := regexp.MustCompile(`(\d+)`).FindAllString(buf[1], 1)
@@ -75,6 +78,9 @@ func (i *Purchase) ProcessLine(line string, position uint) error {
 		}
 
 		i.Price = price
+		if isVoid {
+			i.Price *= -1
+		}
 
 		data = re.FindStringSubmatch(line)
 		var qtyStr string
@@ -95,7 +101,7 @@ func (i *Purchase) ProcessLine(line string, position uint) error {
 			return nil
 		}
 
-		i.Quantity = uint(qty)
+		i.Quantity = qty
 		i.IsProcessed = true
 
 		return nil
@@ -128,14 +134,17 @@ func parseSubtotal(line string) (*float64, error) {
 	return nil, nil
 }
 
-// formatBuffer applies business logic to remove irrelevant purchases
-// from the buffer
+// formatBuffer applies business logic to mark the start
+// of a new purchase
 func formatBuffer(buf []string) []string {
 	if len(buf) > 4 { // handles the first line of a receipt
 		// add check that this can only occur once
 		var data []string
 		for i := len(buf) - 1; i >= 0; i-- {
-			if buf[i] == "" {
+			// we mark the start of a new item by finding empty line in the buffer
+			// or when that the cashier created a subtotal in the middle of ringing
+			// the purchases
+			if buf[i] == "" || strings.Index(strings.ToLower(buf[i]), "subtotal") >= 0 {
 				break
 			}
 			data = append(data, buf[i])

@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 	"jiaming2012/receipt-processor/custom"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,17 +26,15 @@ func (m Meta) String() string {
 }
 
 func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
-	if m.IsProcessed {
-		return nil
-	}
+	if len(m.StoreName) == 0 {
+		if storeName := formattedStoreName(line); len(storeName) > 0 {
+			m.StoreName = storeName
 
-	if line == "Restaurant Depot" {
-		m.StoreName = line
-
-		if store, dbErr := FindOrCreateStore(m.StoreName, db); dbErr == nil {
-			m.StoreId = &store.ID
-		} else {
-			return dbErr
+			if store, dbErr := FindOrCreateStore(m.StoreName, db); dbErr == nil {
+				m.StoreId = &store.ID
+			} else {
+				return dbErr
+			}
 		}
 	}
 
@@ -51,51 +50,60 @@ func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
 		}
 	}
 
-	if m.TotalUnits == nil {
-		matches := custom.ReceiptRegex["Total Units"].FindStringSubmatch(line)
-		if len(matches) > 1 {
-			val, err := strconv.Atoi(matches[1])
-			if err != nil {
-				return err
-			}
-			units := uint(val)
-			m.TotalUnits = &units
+	// parse total units
+	matches := custom.ReceiptRegex["Total Units"].FindStringSubmatch(line)
+	if len(matches) > 1 {
+		val, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return err
 		}
+		units := uint(val)
+		m.TotalUnits = &units
 	}
 
-	if m.TotalCases == nil {
-		matches := custom.ReceiptRegex["Total Cases"].FindStringSubmatch(line)
-		if len(matches) > 1 {
-			val, err := strconv.Atoi(matches[1])
-			if err != nil {
-				return err
-			}
-			cases := uint(val)
-			m.TotalCases = &cases
+	// parse total cases
+	matches = custom.ReceiptRegex["Total Cases"].FindStringSubmatch(line)
+	if len(matches) > 1 {
+		val, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return err
 		}
+		cases := uint(val)
+		m.TotalCases = &cases
 	}
 
-	if m.TotalItems == nil {
-		matches := custom.ReceiptRegex["Total Purchases"].FindStringSubmatch(line)
-		if len(matches) > 1 {
+	// parse total items
+	matches = custom.ReceiptRegex["Total Purchases"].FindStringSubmatch(line)
+	if len(matches) > 1 {
+		val, err := strconv.Atoi(matches[1])
+		if err != nil {
+			return err
+		}
+		purchases := uint(val)
+		m.TotalItems = &purchases
+	}
+
+	// add additional items
+	matches = custom.ReceiptRegex["Additional Purchases"].FindStringSubmatch(line)
+	if len(matches) > 1 {
+		if m.TotalItems != nil {
 			val, err := strconv.Atoi(matches[1])
 			if err != nil {
 				return err
 			}
 			purchases := uint(val)
-			m.TotalItems = &purchases
+			*m.TotalItems += purchases
 		}
 	}
 
-	if m.Subtotal == nil {
-		val, err := parseSubtotal(line)
-		if err != nil {
-			return err
-		}
+	// parse subtotal
+	val, err := parseSubtotal(line)
+	if err != nil {
+		return err
+	}
 
-		if val != nil {
-			m.Subtotal = val
-		}
+	if val != nil {
+		m.Subtotal = val
 	}
 
 	if m.Timestamp != nil && m.TotalUnits != nil && m.TotalItems != nil && m.TotalCases != nil && m.Subtotal != nil && m.StoreId != nil {
@@ -103,4 +111,14 @@ func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func formattedStoreName(line string) string {
+	line = strings.ToLower(line)
+
+	if strings.Index(line, "restaurant") >= 0 && strings.Index(line, "depot") >= 0 {
+		return "Restaurant Depot"
+	}
+
+	return ""
 }
