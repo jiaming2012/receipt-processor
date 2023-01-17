@@ -106,11 +106,36 @@ func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
 		m.Subtotal = val
 	}
 
-	if m.Timestamp != nil && m.TotalUnits != nil && m.TotalItems != nil && m.TotalCases != nil && m.Subtotal != nil && m.StoreId != nil {
+	if len(m.Unprocessed()) == 0 {
 		m.IsProcessed = true
 	}
 
 	return nil
+}
+
+func (m *Meta) Unprocessed() []string {
+	var result []string
+
+	if m.Timestamp == nil {
+		result = append(result, "Could not find a timestamp on the receipt.")
+	}
+	if m.TotalUnits == nil {
+		result = append(result, "Could not find \"TOTAL UNITS ENTERED\" on the receipt, please make sure there is a number after \"TOTAL UNITS ENTERED\".")
+	}
+	if m.TotalItems == nil {
+		result = append(result, "Could not find \"TOTAL ITEMS RUNG UP\" on the receipt, please make sure there is a number after \"TOTAL ITEMS RUNG UP\".")
+	}
+	if m.TotalCases == nil {
+		result = append(result, "Could not find \"TOTAL CASES ENTERED\" on the receipt, please make sure there is a number after \"TOTAL CASES ENTERED\".")
+	}
+	if m.Subtotal == nil {
+		result = append(result, "Could not find the subtotal on the receipt.")
+	}
+	if m.StoreId == nil {
+		result = append(result, "Could not find the store name on the receipt.")
+	}
+
+	return result
 }
 
 func formattedStoreName(line string) string {

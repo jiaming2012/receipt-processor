@@ -27,7 +27,9 @@ func almostEqual(a, b float64) bool {
 }
 
 func run() {
-	f, fileErr := os.Open("receipts/unprocessed/3.txt")
+	var programExitMessage string
+
+	f, fileErr := os.Open("receipts/unprocessed/6.txt")
 	if fileErr != nil {
 		panic(fileErr)
 	}
@@ -73,12 +75,7 @@ func run() {
 	}
 
 	if !meta.IsProcessed {
-		log.Fatalf("meta data not processed, %v", meta)
-	}
-
-	purchasesTotal := purchases.Total()
-	if !almostEqual(purchasesTotal, *meta.Subtotal) {
-		log.Fatalf("expected purchasesTotal %f to equal receipt subtotal %f", purchasesTotal, *meta.Subtotal)
+		log.Fatalf("meta data not processed: %v", meta.Unprocessed())
 	}
 
 	if *meta.TotalUnits+*meta.TotalCases != *meta.TotalItems {
@@ -87,18 +84,23 @@ func run() {
 
 	unitsCount, casesCounts := purchases.Count()
 	if unitsCount != int(*meta.TotalUnits) {
-		log.Fatalf("expected unitsCount %v to equal TotalUnits %v", unitsCount, *meta.TotalUnits)
+		log.Fatalf("expected unitsCount %v to equal TotalUnits %v. Please verify spelling and that the last line for each item on the receipt starts with either \"UNITS  \" or \"CASES   UNITS \"", unitsCount, *meta.TotalUnits)
 	}
 
 	if casesCounts != int(*meta.TotalCases) {
-		log.Fatalf("expected casesCounts %v to equal TotalCases %v", casesCounts, *meta.TotalCases)
+		log.Fatalf("expected casesCounts %v to equal TotalCases %v. Please verify spelling and that the last line for each item on the receipt starts with either \"UNITS  \" or \"CASES   UNITS \"", casesCounts, *meta.TotalCases)
+	}
+
+	purchasesTotal := purchases.Total()
+	if !almostEqual(purchasesTotal, *meta.Subtotal) {
+		log.Fatalf("expected purchasesTotal %f to equal receipt subtotal %f", purchasesTotal, *meta.Subtotal)
 	}
 
 	var metaSaved models.Meta
-	tx := db.Find(&metaSaved).Where(models.Meta{
+	tx := db.Where(models.Meta{
 		StoreId:   meta.StoreId,
 		Timestamp: meta.Timestamp,
-	})
+	}).Find(&metaSaved)
 
 	if tx.Error != nil {
 		panic(tx.Error)
@@ -116,8 +118,10 @@ func run() {
 	if rowsAffected == 0 {
 		db.Create(&meta)
 		metaId = meta.Model.ID
+		programExitMessage = "New receipt processed"
 	} else {
 		metaId = metaSaved.Model.ID
+		programExitMessage = "Existing receipt reprocessed"
 	}
 
 	if tx.Error != nil {
@@ -125,14 +129,23 @@ func run() {
 	}
 
 	for _, purchase := range purchases {
-		purchase.MetaId = meta.ID
+		purchase.MetaId = metaId
 
-		tx = db.Model(models.Purchase{}).Where(models.Purchase{
-			MetaId:   metaId,
+		var purchaseSaved models.Purchase
+		tx = db.Where(models.Purchase{
+			MetaId:   purchase.MetaId,
 			Position: purchase.Position,
-		}).Updates(&purchase)
+		}).Find(&purchaseSaved)
 
-		if tx.RowsAffected == 0 {
+		if tx.Error != nil {
+			panic(tx.Error)
+		}
+
+		rowsAffected = tx.RowsAffected
+
+		tx = tx.Updates(&meta)
+
+		if rowsAffected == 0 {
 			db.Create(&purchase)
 		}
 
@@ -141,7 +154,7 @@ func run() {
 		}
 	}
 
-	log.Info("New receipt processed: ", meta)
+	log.Infof("%s: %v", programExitMessage, meta)
 }
 
 func setupDB() {

@@ -66,7 +66,7 @@ func (i *Purchase) ProcessLine(line string, position uint) error {
 		isVoid := strings.LastIndex(buf[1], "-$") >= 0
 
 		if dollarSignIndex < 0 {
-			log.Fatalf("expected to find $ on %s. Check that the $ is not accidently on the item description line", buf[1])
+			log.Fatalf("expected to find $ on line starting with: %s. Check that the $ is at the end of the line", buf[1])
 		}
 
 		data := regexp.MustCompile(`(\d+)`).FindAllString(buf[1], 1)
@@ -74,7 +74,7 @@ func (i *Purchase) ProcessLine(line string, position uint) error {
 
 		price, err := strconv.ParseFloat(buf[1][dollarSignIndex+1:], 64)
 		if err != nil {
-			return err
+			return fmt.Errorf("%v. Verify the receipt amount is a valid USD amount", err)
 		}
 
 		i.Price = price

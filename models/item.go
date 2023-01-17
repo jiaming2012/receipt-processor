@@ -38,6 +38,14 @@ func FindOrCreateItem(purchase *Purchase, meta *Meta, db *gorm.DB) (*Item, error
 		return &item, nil
 	}
 
+	if meta.StoreId == nil {
+		if len(meta.StoreName) == 0 {
+			log.Fatal("Unable to find the store name. Please check that store name is properly printed on a single line")
+		}
+
+		log.Fatalf("Unable to find the store id for %s", meta.StoreName)
+	}
+
 	item := &Item{
 		SKU:         purchase.SKU,
 		Description: purchase.Description,
