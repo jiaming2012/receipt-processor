@@ -21,6 +21,7 @@ func Setup() error {
 	return nil
 }
 
+// host=infra.a.pinggy.online user=myuser password=test123 dbname=mydb port=21996 sslmode=disable TimeZone=UTC
 func GetDB() *gorm.DB {
 	mutex.Lock()
 	return _db
