@@ -29,6 +29,31 @@ func PopulateItemsCache(db *gorm.DB) {
 	}
 }
 
+func FindOrCreateItemFromPurchaseV2DTO(dto *PurchaseV2DTO, meta *MetaV2, db *gorm.DB) (*Item, error) {
+	if cached, ok := cache[SKU(dto.SKU)]; ok {
+		if string(cached.Description) != dto.Description {
+			// todo: consider making this fatal
+			log.Warnf("item description [%v] should match stored description [%s], for sku %s @ position %v", dto.Description, cached.Description, dto.SKU)
+		}
+		return &cached, nil
+	}
+
+	newItem := &Item{
+		SKU:         SKU(dto.SKU),
+		Description: Description(dto.Description),
+		StoreId:     meta.StoreID,
+	}
+
+	tx := db.Create(newItem)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	cache[newItem.SKU] = *newItem
+
+	return newItem, nil
+}
+
 func FindOrCreateItem(purchase *Purchase, meta *Meta, db *gorm.DB) (*Item, error) {
 	if item, ok := cache[purchase.SKU]; ok {
 		if item.Description != purchase.Description {

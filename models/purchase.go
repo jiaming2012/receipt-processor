@@ -2,13 +2,83 @@ package models
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 	"jiaming2012/receipt-processor/custom"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
+
+type PurchaseV2 struct {
+	gorm.Model
+	IsCase   bool    `gorm:"not null"`
+	Price    float64 `gorm:"not null"`
+	Quantity int     `gorm:"not null"`
+	MetaId   uint    `gorm:"not null"`
+	ItemId   uint    `gorm:"not null"`
+	Position uint    `gorm:"not null"`
+}
+
+func (p PurchaseV2) AsMap() map[string]interface{} {
+	return map[string]interface{}{
+		"is_case":  p.IsCase,
+		"price":    p.Price,
+		"quantity": p.Quantity,
+		"meta_id":  p.MetaId,
+		"item_id":  p.ItemId,
+		"position": p.Position,
+	}
+}
+
+type PurchasesV2 []PurchaseV2
+
+func (purchase *PurchaseV2) Update(position uint, item *Item, meta *MetaV2, db *gorm.DB) error {
+	purchase.ItemId = item.ID
+	purchase.MetaId = meta.ID
+	purchase.Position = position
+
+	tx := db.Save(purchase)
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	return nil
+}
+
+// Total calculates the total number of cases, units and the sum of prices for a slice of PurchasesV2.
+func (purchases PurchasesV2) Total() (uint, uint, float64) {
+	var cases uint = 0
+	var units uint = 0
+	var sum float64 = 0
+	for _, i := range purchases {
+		if i.IsCase {
+			cases += uint(i.Quantity)
+		} else {
+			units += uint(i.Quantity)
+		}
+
+		sum += i.Price
+	}
+	return units, cases, sum
+}
+
+type PurchaseV2DTO struct {
+	SKU         string  `csv:"UPC"`
+	Description string  `csv:"Description"`
+	UnitQty     int     `csv:"UnitQty"`
+	CaseQty     int     `csv:"CaseQty"`
+	Price       float64 `csv:"Price"`
+}
+
+func (p PurchaseV2DTO) ConvertToPurchaseV2() *PurchaseV2 {
+	return &PurchaseV2{
+		IsCase:   p.CaseQty > 0,
+		Price:    p.Price,
+		Quantity: p.UnitQty + p.CaseQty,
+	}
+}
 
 type Purchase struct {
 	gorm.Model

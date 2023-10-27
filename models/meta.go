@@ -2,12 +2,59 @@ package models
 
 import (
 	"fmt"
-	"gorm.io/gorm"
 	"jiaming2012/receipt-processor/custom"
 	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
+
+type MetaV2 struct {
+	gorm.Model
+	StoreID    uint       `gorm:"not null"`
+	Store      *Store     `gorm:"foreignKey:StoreID;references:ID;uniqueIndex:compositeMeta;not null"`
+	Timestamp  *time.Time `gorm:"uniqueIndex:compositeMeta;not null"`
+	TotalUnits *uint
+	TotalCases *uint
+	Subtotal   *float64
+	Tax        *float64
+}
+
+func (m *MetaV2) Update(purchases PurchasesV2, db *gorm.DB) error {
+	totalUnits, totalCases, subtotal := purchases.Total()
+
+	m.TotalUnits = &totalUnits
+	m.TotalCases = &totalCases
+	m.Subtotal = &subtotal
+
+	tx := db.Save(m)
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	return nil
+}
+
+func FindOrCreateMeta(store *Store, ts time.Time, subtotal float64, tax float64, db *gorm.DB) (*MetaV2, error) {
+	var meta MetaV2
+
+	if tx := db.Find(&meta, "store_id = ? AND timestamp = ?", store.ID, ts); tx.Error == nil {
+		if tx.RowsAffected == 0 {
+			meta.Store = store
+			meta.Timestamp = &ts
+			meta.Subtotal = &subtotal
+			meta.Tax = &tax
+
+			tx = db.Save(&meta)
+			if tx.Error != nil {
+				return nil, tx.Error
+			}
+		}
+	}
+
+	return &meta, nil
+}
 
 type Meta struct {
 	gorm.Model
@@ -30,7 +77,7 @@ func (m *Meta) ProcessLine(line string, db *gorm.DB) error {
 		if storeName := formattedStoreName(line); len(storeName) > 0 {
 			m.StoreName = storeName
 
-			if store, dbErr := FindOrCreateStore(m.StoreName, db); dbErr == nil {
+			if store, dbErr := FindOrCreateStore(StoreName(m.StoreName), db); dbErr == nil {
 				m.StoreId = &store.ID
 			} else {
 				return dbErr

@@ -6,27 +6,32 @@ import (
 	"time"
 )
 
-type DateTime struct {
+type DateTimeEST struct {
 	time.Time
 }
 
-func (date *DateTime) MarshalCSV() (string, error) {
+func (date *DateTimeEST) MarshalCSV() (string, error) {
 	return date.Time.Format("20060201"), nil
 }
 
-func (date *DateTime) UnmarshalCSV(csv string) (err error) {
+func (date *DateTimeEST) UnmarshalCSV(csv string) (err error) {
 	if len(csv) == 0 {
 		date.Time = time.Time{}
 		return nil
 	}
 
-	date.Time, err = time.Parse("1/2/06 3:04 PM", csv)
+	est, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		panic(err)
+	}
+
+	date.Time, err = time.ParseInLocation("1/2/06 3:04 PM", csv, est)
 	return err
 }
 
-func (t *DateTime) Scan(value interface{}) error {
+func (t *DateTimeEST) Scan(value interface{}) error {
 	if value == nil {
-		*t = DateTime{}
+		*t = DateTimeEST{}
 		return nil
 	}
 
@@ -35,13 +40,13 @@ func (t *DateTime) Scan(value interface{}) error {
 		return errors.New("invalid timestamp format from the database")
 	}
 
-	*t = DateTime{
+	*t = DateTimeEST{
 		Time: dbTime,
 	}
 	return nil
 }
 
-func (t DateTime) Value() (driver.Value, error) {
+func (t DateTimeEST) Value() (driver.Value, error) {
 	if t.IsZero() {
 		return nil, nil
 	}

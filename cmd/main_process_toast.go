@@ -1,21 +1,77 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
+	"errors"
 	"fmt"
+	"io"
 	"jiaming2012/receipt-processor/database"
 	"jiaming2012/receipt-processor/models"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
-func UpsertOrderDetail(newOrderDetail *models.OrderDetail, db *gorm.DB) error {
-	var orderDetail models.OrderDetail
+func setTimeToStartOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
 
-	if tx := db.Find(&orderDetail, "order_number = ? and opened between ? and ?", newOrderDetail.OrderNumber); tx.Error == nil {
+func setTimeToEndOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, int(time.Second-time.Nanosecond), t.Location())
+}
+
+func DeletePurchasesAfterPosition(meta *models.MetaV2, position int, db *gorm.DB) error {
+	tx := db.Where("meta_id = ? AND position >= ?", meta.ID, position).Delete(&models.PurchaseV2{})
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	return nil
+}
+
+func UpsertPurchase(position uint, purchaseDto *models.PurchaseV2DTO, meta *models.MetaV2, db *gorm.DB) error {
+	item, err := models.FindOrCreateItemFromPurchaseV2DTO(purchaseDto, meta, db)
+	if err != nil {
+		return fmt.Errorf("failed to find or create item: %v", err)
+	}
+
+	newPurchase := purchaseDto.ConvertToPurchaseV2()
+	newPurchase.ItemId = item.ID
+	newPurchase.Position = position
+	newPurchase.MetaId = meta.ID
+
+	var purchase models.PurchaseV2
+	if tx := db.Find(&purchase, "meta_id = ? AND position = ?", meta.ID, position); tx.Error == nil {
+		if tx.RowsAffected == 0 {
+			tx = db.Create(newPurchase)
+			if tx.Error != nil {
+				return tx.Error
+			}
+		} else {
+			m := newPurchase.AsMap()
+			db.Model(&purchase).Updates(m)
+		}
+	}
+
+	return nil
+}
+
+func UpsertOrderDetail(newOrderDetail *models.ToastOrderDetail, db *gorm.DB) error {
+	var orderDetail models.ToastOrderDetail
+
+	// find the order detail by order number and opened date
+	startDate := setTimeToStartOfDay(newOrderDetail.Opened.Time)
+	endDate := setTimeToEndOfDay(newOrderDetail.Opened.Time)
+
+	if tx := db.Find(&orderDetail, "order_number = ? and opened between ? and ?", newOrderDetail.OrderNumber, startDate, endDate); tx.Error == nil {
 		if tx.RowsAffected == 0 {
 			tx = db.Create(newOrderDetail)
 			if tx.Error != nil {
@@ -23,7 +79,8 @@ func UpsertOrderDetail(newOrderDetail *models.OrderDetail, db *gorm.DB) error {
 			}
 		} else {
 			newOrderDetail.ID = orderDetail.ID
-			db.Updates(newOrderDetail)
+			m := newOrderDetail.AsMap()
+			db.Model(&orderDetail).Updates(m)
 		}
 	} else {
 		log.Errorf(tx.Error.Error())
@@ -41,7 +98,11 @@ func setupDB() {
 	db := database.GetDB()
 	defer database.ReleaseDB()
 
-	db.AutoMigrate(&models.OrderDetail{})
+	db.AutoMigrate(&models.ToastOrderDetail{})
+	db.AutoMigrate(&models.Store{})
+	db.AutoMigrate(&models.MetaV2{})
+	db.AutoMigrate(&models.PurchaseV2{})
+	db.AutoMigrate(&models.Item{})
 
 	log.Info("Db setup complete!")
 }
@@ -76,6 +137,182 @@ func moveFileToDirectory(csvFile string, newDirectory string) error {
 	return nil
 }
 
+func iterateFiles(dir string, upsertToDB func(string) error) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			return upsertToDB(path)
+		}
+
+		return nil
+	})
+}
+
+func processMetadata(metaData string) (models.StoreName, time.Time, float64, float64, error) {
+	// Verify that "Restaurant Depot" is found in the text.
+	if match, _ := regexp.MatchString("Restaurant Depot", metaData); !match {
+		return "", time.Time{}, 0.0, 0.0, fmt.Errorf("Restaurant Depot not found in text")
+	}
+
+	storeName := models.StoreName("Restaurant Depot")
+
+	// Capture the date in format "12/22/2022 2:50pm" from the text.
+	re := regexp.MustCompile(`(\d{1,2}/\d{1,2}/\d{4} \d{1,2}:\d{2} [ap]m)`)
+	date := re.FindStringSubmatch(metaData)[1]
+
+	layout := "01/02/2006 3:04 pm"
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to load location: %v", err)
+	}
+
+	parsedDate, err := time.ParseInLocation(layout, date, loc)
+	if err != nil {
+		return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to parse date: %v", err)
+	}
+
+	// Search for the Sub-Total, Tax, and Total rows.
+	// Parse the CSV data.
+	reader := csv.NewReader(strings.NewReader(metaData))
+	var records [][]string
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			if !errors.Is(err, csv.ErrFieldCount) {
+				return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to read csv data: %v", err)
+			}
+		}
+		records = append(records, record)
+	}
+
+	var subTotal, tax float64
+	var foundSubTotal, foundTax bool
+	for _, record := range records {
+		if len(record) >= 5 && record[1] == "Sub-Total" {
+			foundSubTotal = true
+			subTotal, err = strconv.ParseFloat(strings.Replace(record[4], "$", "", -1), 64)
+			if err != nil {
+				return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to parse sub-total: %v", err)
+			}
+		} else if len(record) >= 5 && record[1] == "Tax" {
+			foundTax = true
+			tax, err = strconv.ParseFloat(strings.Replace(record[4], "$", "", -1), 64)
+			if err != nil {
+				return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to parse tax: %v", err)
+			}
+		}
+	}
+
+	if !foundSubTotal || !foundTax {
+		return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to find sub-total or tax")
+	}
+
+	return storeName, parsedDate, subTotal, tax, nil
+}
+
+func processRestaurantDepotReceipts(db *gorm.DB) error {
+	// iterate all files in receipts/unprocessed/restaurant_depot
+	return iterateFiles("receipts/unprocessed/restaurant_depot", func(path string) error {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+
+		// split the metadata from the product details by
+		// finding and splitting the first line in the csv file that contains UPC
+		scanner := bufio.NewScanner(file)
+		var csvData, metaData string
+		var foundUPC, foundSubTotal bool
+		isMetadata := true
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if strings.HasPrefix(line, "UPC,") {
+				isMetadata = false
+				foundUPC = true
+			}
+
+			if strings.Contains(line, "Sub-Total") {
+				isMetadata = true
+				foundSubTotal = true
+			}
+
+			if isMetadata {
+				metaData += line + "\n"
+			} else {
+				csvData += strings.ReplaceAll(line, "$", "") + "\n"
+			}
+		}
+
+		if !foundUPC || !foundSubTotal {
+			return fmt.Errorf("failed to find UPC or Sub-Total")
+		}
+
+		storeName, timestamp, subtotal, tax, err := processMetadata(metaData)
+		if err != nil {
+			return fmt.Errorf("failed to process metadata: %v", err)
+		}
+
+		store, err := models.FindOrCreateStore(storeName, db)
+		if err != nil {
+			return fmt.Errorf("failed to find or create store: %v", err)
+		}
+
+		// Parse the CSV data using gocsv.
+		var dto_slice []models.PurchaseV2DTO
+		if err = gocsv.UnmarshalString(csvData, &dto_slice); err != nil {
+			return fmt.Errorf("failed to unmarshal csv data: %v", err)
+		}
+
+		meta, err := models.FindOrCreateMeta(store, timestamp, subtotal, tax, db)
+		if err != nil {
+			return fmt.Errorf("failed to find or create meta: %v", err)
+		}
+
+		var position uint = 0
+		for _, dto := range dto_slice {
+			if strings.Contains(dto.Description, "Balance") {
+				log.Debug("Skipping purchase with description: ", dto.Description)
+				continue
+			}
+
+			position += 1
+
+			err = UpsertPurchase(position, &dto, meta, db)
+			if err != nil {
+				log.Errorf("failed to upsert product: %v", err)
+				break
+			}
+		}
+
+		if err := DeletePurchasesAfterPosition(meta, len(dto_slice), db); err != nil {
+			log.Errorf("failed to delete purchases after position: %v", err)
+		}
+
+		if err := scanner.Err(); err != nil {
+			panic(err)
+		}
+
+		// upsert each record into the database
+		// move the file to receipts/processed/restaurant_depot
+		// if product is not found, move the file to receipts/unprocessed/restaurant_depot/failed
+
+		return nil
+	})
+}
+
+// for each file, parse the csv data using gocsv
+// upsert each record into the database
+// move the file to receipts/processed/toast
+
 func main() {
 	// Get the path to the directory containing the go.mod file.
 	rootDir, err := filepath.Abs(filepath.Dir("../"))
@@ -97,32 +334,42 @@ func main() {
 	db := database.GetDB()
 	defer database.ReleaseDB()
 
-	// Parse the CSV data using gocsv.
-	csvFile := "receipts/unprocessed/toast/OrderDetails_2022_01_01-2023_09_23.csv"
-	var records []models.OrderDetail
-	f, err := os.Open(csvFile)
-	if err != nil {
+	models.PopulateItemsCache(db)
+
+	if err := processRestaurantDepotReceipts(db); err != nil {
 		panic(err)
 	}
 
-	if err = gocsv.UnmarshalFile(f, &records); err != nil {
-		panic(err)
-	}
-
-	for _, record := range records {
-		err = UpsertOrderDetail(&record, db)
+	// iterate all files in receipts/unprocessed/toast
+	iterateFiles("receipts/unprocessed/toast", func(path string) error {
+		// Parse the CSV data using gocsv.
+		var records []models.ToastOrderDetail
+		f, err := os.Open(path)
 		if err != nil {
-			log.Errorf("failed to upsert order detail: %v", err)
-			break
+			panic(err)
 		}
-	}
 
-	// write a function that moves csvFile to a new directory
-	if err == nil {
-		newDirectory := "receipts/processed/toast"
-		err = moveFileToDirectory(csvFile, newDirectory)
-		if err != nil {
-			log.Errorf("failed to move file to directory: %v", err)
+		if err = gocsv.UnmarshalFile(f, &records); err != nil {
+			panic(err)
 		}
-	}
+
+		for _, record := range records {
+			err = UpsertOrderDetail(&record, db)
+			if err != nil {
+				log.Errorf("failed to upsert order detail: %v", err)
+				break
+			}
+		}
+
+		// write a function that moves csvFile to a new directory
+		if err == nil {
+			newDirectory := "receipts/processed/toast"
+			err = moveFileToDirectory(path, newDirectory)
+			if err != nil {
+				log.Errorf("failed to move file to directory: %v", err)
+			}
+		}
+
+		return err
+	})
 }
