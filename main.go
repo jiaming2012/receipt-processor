@@ -3,13 +3,14 @@ package main
 import (
 	"bufio"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"jiaming2012/receipt-processor/database"
 	"jiaming2012/receipt-processor/models"
 	"math"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func printArray(data []string) string {
@@ -168,7 +169,7 @@ func setupDB() {
 
 	db.AutoMigrate(&models.Meta{})
 	db.AutoMigrate(&models.Purchase{})
-	db.AutoMigrate(&models.Item{})
+	db.AutoMigrate(&models.PurchaseItem{})
 	db.AutoMigrate(&models.Store{})
 
 	models.PopulateItemsCache(db)

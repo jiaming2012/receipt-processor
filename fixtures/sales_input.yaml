@@ -1,0 +1,10 @@
+MenuItems:
+  - ID: 3
+    Name: "Street Corn"
+    PurchaseItemsGroup:
+      - ID: 1
+        Name: "Example PurchaseItem 1"
+        Quantity: 1
+      - ID: 2
+        Name: "Example PurchaseItem 2"
+        Quantity: 1

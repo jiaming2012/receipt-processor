@@ -8,6 +8,7 @@ import (
 	"io"
 	"jiaming2012/receipt-processor/database"
 	"jiaming2012/receipt-processor/models"
+	"jiaming2012/receipt-processor/utils"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -64,6 +65,35 @@ func UpsertPurchase(position uint, purchaseDto *models.PurchaseV2DTO, meta *mode
 	return nil
 }
 
+func UpsertItemSelectionDetail(dto *models.ToastItemSelectionDetailDTO, db *gorm.DB) error {
+	var itemSelectionDetail models.ToastItemSelectionDetail
+
+	// find the item selection detail by order number and opened date
+	startDate := setTimeToStartOfDay(dto.SentDate.Time)
+	endDate := setTimeToEndOfDay(dto.SentDate.Time)
+
+	if tx := db.Find(&itemSelectionDetail, "order_number = ? and sent_date between ? and ?", dto.OrderNumber, startDate, endDate); tx.Error == nil {
+		if tx.RowsAffected == 0 {
+			newItemSelectionDetail, err := dto.ConvertToToastItemSelectionDetail(db)
+			if err != nil {
+				return fmt.Errorf("failed to convert to toast item selection detail: %v", err)
+			}
+
+			tx = db.Create(&newItemSelectionDetail)
+			if tx.Error != nil {
+				return tx.Error
+			}
+		} else {
+			m := itemSelectionDetail.AsMap()
+			db.Model(&itemSelectionDetail).Updates(m)
+		}
+	} else {
+		log.Errorf(tx.Error.Error())
+	}
+
+	return nil
+}
+
 func UpsertOrderDetail(newOrderDetail *models.ToastOrderDetail, db *gorm.DB) error {
 	var orderDetail models.ToastOrderDetail
 
@@ -87,24 +117,6 @@ func UpsertOrderDetail(newOrderDetail *models.ToastOrderDetail, db *gorm.DB) err
 	}
 
 	return nil
-}
-
-func setupDB() {
-	log.Info("Setting up database ...")
-	if err := database.Setup(); err != nil {
-		log.Errorf("failed to setup database: %v", err)
-		return
-	}
-	db := database.GetDB()
-	defer database.ReleaseDB()
-
-	db.AutoMigrate(&models.ToastOrderDetail{})
-	db.AutoMigrate(&models.Store{})
-	db.AutoMigrate(&models.MetaV2{})
-	db.AutoMigrate(&models.PurchaseV2{})
-	db.AutoMigrate(&models.Item{})
-
-	log.Info("Db setup complete!")
 }
 
 func moveFileToDirectory(csvFile string, newDirectory string) error {
@@ -195,13 +207,17 @@ func processMetadata(metaData string) (models.StoreName, time.Time, float64, flo
 	for _, record := range records {
 		if len(record) >= 5 && record[1] == "Sub-Total" {
 			foundSubTotal = true
-			subTotal, err = strconv.ParseFloat(strings.Replace(record[4], "$", "", -1), 64)
+			str := strings.Replace(record[4], "$", "", -1)
+			str = strings.Replace(str, ",", "", -1)
+			subTotal, err = strconv.ParseFloat(str, 64)
 			if err != nil {
 				return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to parse sub-total: %v", err)
 			}
 		} else if len(record) >= 5 && record[1] == "Tax" {
 			foundTax = true
-			tax, err = strconv.ParseFloat(strings.Replace(record[4], "$", "", -1), 64)
+			str := strings.Replace(record[4], "$", "", -1)
+			str = strings.Replace(str, ",", "", -1)
+			tax, err = strconv.ParseFloat(str, 64)
 			if err != nil {
 				return "", time.Time{}, 0.0, 0.0, fmt.Errorf("failed to parse tax: %v", err)
 			}
@@ -218,6 +234,8 @@ func processMetadata(metaData string) (models.StoreName, time.Time, float64, flo
 func processRestaurantDepotReceipts(db *gorm.DB) error {
 	// iterate all files in receipts/unprocessed/restaurant_depot
 	return iterateFiles("receipts/unprocessed/restaurant_depot", func(path string) error {
+		log.Info("processRestaurantDepotReceipts: Processing file: ", path)
+
 		file, err := os.Open(path)
 		if err != nil {
 			return err
@@ -305,8 +323,87 @@ func processRestaurantDepotReceipts(db *gorm.DB) error {
 		// move the file to receipts/processed/restaurant_depot
 		// if product is not found, move the file to receipts/unprocessed/restaurant_depot/failed
 
+		// write a function that moves csvFile to a new directory
+		if err == nil {
+			newDirectory := "receipts/processed/restaurant_depot"
+			err = moveFileToDirectory(path, newDirectory)
+			if err != nil {
+				log.Errorf("failed to move file to directory: %v", err)
+			}
+		}
+
 		return nil
 	})
+}
+
+func handleToastItemSelectionDetail(path string, db *gorm.DB) error {
+	// Parse the CSV data using gocsv.
+	var records []models.ToastItemSelectionDetailDTO
+
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	defer f.Close()
+
+	if err = gocsv.UnmarshalFile(f, &records); err != nil {
+		return fmt.Errorf("failed to unmarshall file: %w", err)
+	}
+
+	for _, record := range records {
+		err = UpsertItemSelectionDetail(&record, db)
+		if err != nil {
+			log.Errorf("failed to upsert order detail: %v", err)
+			break
+		}
+	}
+
+	// write a function that moves csvFile to a new directory
+	if err == nil {
+		newDirectory := "receipts/processed/toast"
+		err = moveFileToDirectory(path, newDirectory)
+		if err != nil {
+			log.Errorf("failed to move file to directory: %v", err)
+		}
+	}
+
+	return err
+}
+
+func handleToastOrderDetail(path string, db *gorm.DB) error {
+	// Parse the CSV data using gocsv.
+	var records []models.ToastOrderDetail
+
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	defer f.Close()
+
+	if err = gocsv.UnmarshalFile(f, &records); err != nil {
+		return fmt.Errorf("failed to unmarshall file: %w", err)
+	}
+
+	for _, record := range records {
+		err = UpsertOrderDetail(&record, db)
+		if err != nil {
+			log.Errorf("failed to upsert order detail: %v", err)
+			break
+		}
+	}
+
+	// write a function that moves csvFile to a new directory
+	if err == nil {
+		newDirectory := "receipts/processed/toast"
+		err = moveFileToDirectory(path, newDirectory)
+		if err != nil {
+			log.Errorf("failed to move file to directory: %v", err)
+		}
+	}
+
+	return err
 }
 
 // for each file, parse the csv data using gocsv
@@ -329,12 +426,13 @@ func main() {
 		panic(err)
 	}
 
-	setupDB()
+	utils.SetupDB()
 
 	db := database.GetDB()
 	defer database.ReleaseDB()
 
 	models.PopulateItemsCache(db)
+	models.PopulateMenuItemCache(db)
 
 	if err := processRestaurantDepotReceipts(db); err != nil {
 		panic(err)
@@ -342,34 +440,21 @@ func main() {
 
 	// iterate all files in receipts/unprocessed/toast
 	iterateFiles("receipts/unprocessed/toast", func(path string) error {
-		// Parse the CSV data using gocsv.
-		var records []models.ToastOrderDetail
-		f, err := os.Open(path)
-		if err != nil {
-			panic(err)
-		}
+		log.Info("Processing file: ", path)
 
-		if err = gocsv.UnmarshalFile(f, &records); err != nil {
-			panic(err)
-		}
+		filePrefix := strings.Split(filepath.Base(path), "_")
 
-		for _, record := range records {
-			err = UpsertOrderDetail(&record, db)
-			if err != nil {
-				log.Errorf("failed to upsert order detail: %v", err)
-				break
+		if len(filePrefix) > 0 {
+			switch filePrefix[0] {
+			case "OrderDetails":
+				return handleToastOrderDetail(path, db)
+			case "ItemSelectionDetails":
+				return handleToastItemSelectionDetail(path, db)
+			default:
+				return fmt.Errorf("unknown file prefix: %s", filePrefix[0])
 			}
 		}
 
-		// write a function that moves csvFile to a new directory
-		if err == nil {
-			newDirectory := "receipts/processed/toast"
-			err = moveFileToDirectory(path, newDirectory)
-			if err != nil {
-				log.Errorf("failed to move file to directory: %v", err)
-			}
-		}
-
-		return err
+		return nil
 	})
 }

@@ -13,7 +13,8 @@ import (
 type MetaV2 struct {
 	gorm.Model
 	StoreID    uint       `gorm:"not null"`
-	Store      *Store     `gorm:"foreignKey:StoreID;references:ID;uniqueIndex:compositeMeta;not null"`
+	Store      *Store     `gorm:"foreignKey:StoreID;references:ID;not null"`
+	StoreId    uint       `gorm:"uniqueIndex:compositeMeta;not null"` // created for createing indexes
 	Timestamp  *time.Time `gorm:"uniqueIndex:compositeMeta;not null"`
 	TotalUnits *uint
 	TotalCases *uint

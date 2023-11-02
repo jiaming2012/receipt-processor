@@ -1,3 +1,9 @@
+# Setup
+Set the absolute path that the project resides in.
+E.g.
+``` bash
+export PROJECT_DIR=/path/to/project
+```
 
 # Postgres
 

@@ -9,18 +9,19 @@ type SKU string
 
 type Description string
 
-type Item struct {
+type PurchaseItem struct {
 	gorm.Model
-	SKU         SKU         `gorm:"uniqueIndex:compositeItem;not null"`
-	Description Description `gorm:"not null"`
-	StoreId     uint        `gorm:"uniqueIndex:compositeItem;not null"`
+	SKU                SKU                  `gorm:"uniqueIndex:compositeItem;not null"`
+	Description        Description          `gorm:"not null"`
+	StoreId            uint                 `gorm:"uniqueIndex:compositeItem;not null"`
+	PurchaseItemGroups []*PurchaseItemGroup `gorm:"many2many:purchase_item_group_purchase_items;"`
 }
 
-var cache map[SKU]Item
+var cache map[SKU]PurchaseItem
 
 func PopulateItemsCache(db *gorm.DB) {
-	var items []Item
-	cache = make(map[SKU]Item)
+	var items []PurchaseItem
+	cache = make(map[SKU]PurchaseItem)
 
 	db.Find(&items)
 
@@ -29,7 +30,7 @@ func PopulateItemsCache(db *gorm.DB) {
 	}
 }
 
-func FindOrCreateItemFromPurchaseV2DTO(dto *PurchaseV2DTO, meta *MetaV2, db *gorm.DB) (*Item, error) {
+func FindOrCreateItemFromPurchaseV2DTO(dto *PurchaseV2DTO, meta *MetaV2, db *gorm.DB) (*PurchaseItem, error) {
 	if cached, ok := cache[SKU(dto.SKU)]; ok {
 		if string(cached.Description) != dto.Description {
 			// todo: consider making this fatal
@@ -38,7 +39,7 @@ func FindOrCreateItemFromPurchaseV2DTO(dto *PurchaseV2DTO, meta *MetaV2, db *gor
 		return &cached, nil
 	}
 
-	newItem := &Item{
+	newItem := &PurchaseItem{
 		SKU:         SKU(dto.SKU),
 		Description: Description(dto.Description),
 		StoreId:     meta.StoreID,
@@ -54,7 +55,7 @@ func FindOrCreateItemFromPurchaseV2DTO(dto *PurchaseV2DTO, meta *MetaV2, db *gor
 	return newItem, nil
 }
 
-func FindOrCreateItem(purchase *Purchase, meta *Meta, db *gorm.DB) (*Item, error) {
+func FindOrCreateItem(purchase *Purchase, meta *Meta, db *gorm.DB) (*PurchaseItem, error) {
 	if item, ok := cache[purchase.SKU]; ok {
 		if item.Description != purchase.Description {
 			// todo: consider making this fatal
@@ -71,7 +72,7 @@ func FindOrCreateItem(purchase *Purchase, meta *Meta, db *gorm.DB) (*Item, error
 		log.Fatalf("Unable to find the store id for %s", meta.StoreName)
 	}
 
-	item := &Item{
+	item := &PurchaseItem{
 		SKU:         purchase.SKU,
 		Description: purchase.Description,
 		StoreId:     *meta.StoreId,

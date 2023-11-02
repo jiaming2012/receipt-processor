@@ -34,7 +34,7 @@ func (p PurchaseV2) AsMap() map[string]interface{} {
 
 type PurchasesV2 []PurchaseV2
 
-func (purchase *PurchaseV2) Update(position uint, item *Item, meta *MetaV2, db *gorm.DB) error {
+func (purchase *PurchaseV2) Update(position uint, item *PurchaseItem, meta *MetaV2, db *gorm.DB) error {
 	purchase.ItemId = item.ID
 	purchase.MetaId = meta.ID
 	purchase.Position = position
