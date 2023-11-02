@@ -17,6 +17,7 @@ type PurchaseItemDTO struct {
 
 type PurchaseItemGroupDTO struct {
 	Name          string            `yaml:"name"`
+	Tags          []string          `yaml:"tags"`
 	PurchaseItems []PurchaseItemDTO `yaml:"purchase_items"`
 }
 
@@ -39,7 +40,6 @@ func main() {
 	}
 
 	// Parse the YAML file
-	// var groups []PurchaseItemGroup
 	var groups []PurchaseItemGroupDTO
 	err = yaml.Unmarshal(yamlFile, &groups)
 	if err != nil {
@@ -55,6 +55,12 @@ func main() {
 
 	db := database.GetDB()
 	defer database.ReleaseDB()
+
+	// Truncate the tags table
+	err = db.Exec("TRUNCATE TABLE tags CASCADE").Error
+	if err != nil {
+		log.Fatalf("Error truncating tags: %v", err)
+	}
 
 	// Truncase the purchase_item_groups table
 	err = db.Exec("TRUNCATE TABLE purchase_item_groups CASCADE").Error
@@ -73,6 +79,24 @@ func main() {
 		purchaseItemGroup := models.PurchaseItemGroup{
 			Name: group.Name,
 		}
+
+		// Create or fetch tags
+		var tags []*models.Tag
+		for _, tag := range group.Tags {
+			var existingTag models.Tag
+			err := db.Where("name = ?", tag).First(&existingTag).Error
+			if err != nil {
+				existingTag = models.Tag{Name: tag}
+				if err := db.Create(&existingTag).Error; err != nil {
+					log.Fatalf("Error creating tag: %v", err)
+				}
+			}
+
+			tags = append(tags, &existingTag)
+		}
+
+		// Add the tags to the purchase item group
+		purchaseItemGroup.Tags = tags
 
 		if err := db.Create(&purchaseItemGroup).Error; err != nil {
 			log.Fatalf("Error creating group: %v", err)

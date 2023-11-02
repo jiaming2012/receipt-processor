@@ -25,6 +25,7 @@ func SetupDB() {
 	db.AutoMigrate(&models.MenuItem{})
 	db.AutoMigrate(&models.PurchaseItemGroup{})
 	db.AutoMigrate(&models.PurchaseItem{})
+	db.AutoMigrate(&models.Tag{})
 
 	log.Info("Db setup complete!")
 }

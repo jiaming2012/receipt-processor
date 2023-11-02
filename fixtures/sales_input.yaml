@@ -1,10 +1,21 @@
 MenuItems:
-  - ID: 3
-    Name: "Street Corn"
-    PurchaseItemsGroup:
-      - ID: 1
-        Name: "Example PurchaseItem 1"
-        Quantity: 1
-      - ID: 2
-        Name: "Example PurchaseItem 2"
-        Quantity: 1
+  - "Street Corn"
+  - "Crab Fries"
+  - "Crab Burger"
+  - "Cheesesteak Rolls"
+  - "Brisket"
+  - "Brisket Fries"
+  - "Beef Burgers"
+  - "Jerked Chicken Sandwich"
+  - "Chicken Cheesesteak Rolls"
+  - "Chicken Wings"
+  - "Truffle Fries"
+  - "Coke"
+  - "Dr Pepper"
+  - "The Dirty Dog"
+  - "The Turk Dog"
+  - "The Slaw Dog"
+  - "The Uncle Frank"
+  - "Meatball on a Stick"
+  - "Green Fried Tomatoes"
+  - "Ribs"
