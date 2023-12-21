@@ -9,7 +9,7 @@
 - name: "Bags"
   tags: [ "Supplies" ]
   purchase_items:
-    - description: "%BAG%"
+    - description: "%BAG PL%"
 - name: "Brisket"
   tags: [ "Beef", "Brisket", "Brisket Fries" ]
   purchase_items:
@@ -30,10 +30,9 @@
   purchase_items:
     - description: "%BRD HAM%"
 - name: "Dogs"
-  tags: [ "The Dirty Dog", "The Turk Dog", "The Slaw Dog", "The Uncle Frank"]
+  tags: [ "The Dirty Dog", "The Turk Dog", "The Slaw Dog", "The Uncle Frank", "Vege Dog", "Vege Slaw Dog"]
 - name: "Hot Dog Buns"
-  tags: [ "Dogs", "Bread" ]
-  exclude: [ "The Dirty Dog" ]
+  tags: [ "Bread", "The Turk Dog", "The Slaw Dog", "The Uncle Frank", "Vege Dog", "Vege Slaw Dog" ]
   purchase_items:
     - description: "%BRD HOT%"
     - description: "%BRD HD%"
@@ -41,12 +40,10 @@
   tags: [ "Bread", "Brisket" ]
   purchase_items:
     - description: "%BRIOCH%"
-- name: "Butter"
-  tags: ??
-  purchase_items:
-    - description: "%BTR%"
+- name: "Sandwich"
+  tags: [ "Burgers", "Brisket", "Jerked Chicken Sandwich"]
 - name: "Pickles"
-  tags: ??
+  tags: [ "Sandwich" ]
   purchase_items:
     - description: "%PCLE%"
     - description: "%PICKL%"
@@ -61,6 +58,7 @@
   tags: ["Crab Fries"]
   purchase_items:
     - description: "%SAUCE QUESO BLANCO%"
+    - description: "%CHZ WHITE%"
 - name: "Chicken Breast"
   tags: ["Jerked Chicken Sandwich", "Chicken Cheesesteak Rolls"]
   purchase_items:
@@ -74,7 +72,11 @@
   tags: [ "Supplies", "Cleaning" ]
   purchase_items:
     - description: "%BLEACH%"
-- name: "Wings"
+- name: "Fresh Wings"
+  tags: [ "Jerked Chicken Wings"]
+  purchase_items:
+    - description: "%WING WHL%"
+- name: "Frozen Wings"
   tags: [ "Chicken Wings" ]
   purchase_items:
     - description: "%CHX BIG C%"
@@ -92,8 +94,10 @@
   purchase_items:
     - description: "%COCA COLA%"
     - description: "%COKE%"
+- name: "Grilled Food"
+  tags: ["Street Corn", "Dogs", "Sandwiches", "Meatball on a Stick"]
 - name: "Food"
-  tags: ?? all food items
+  tags: ["Fried Food", "Grilled Food"]
 - name: "Small Containers"
   tags: [ "Supplies", "Food" ]
   purchase_items:
@@ -158,7 +162,7 @@
   purchase_items:
     - description: "%DR PEPPER%"
 - name: "Fries"
-  tags: [ "Fries", "Truffle Fries", "Crab Fries", "Brisket Fries" ]
+  tags: [ "Fries", "Truffle Fries", "Crab Fries", "Brisket Fries", "Truffle Parm Crab Fries", "Cheese Fries", "Chilli Cheese Fries" ]
   purchase_items:
     - description: "%FF%"
 - name: "Floor Cleaner"
@@ -173,6 +177,7 @@
   tags: [ "Dogs" ]
   purchase_items:
     - description: "%HD%"
+    - description: "%FRANK BF%"
 - name: "Meatballs"
   tags: [ "Beef", "Meatball on a Stick" ]
   purchase_items:
@@ -193,10 +198,10 @@
     - description: "%MUST%"
     - description: "%MUS%"
 - name: "Liquid Butter"
-  tags: [ "Street Corn", "Crab Fries"] ???
+  tags: [ "Street Corn", "Crab Fries", "Brisket"]
   purchase_items:
     - description: "%MARG LIQD%"
-    - description: "%LIQ BTR%"
+    - description: "%BTR%"
 - name: "Mayo"
   tags: [ "Condiments" ]
   purchase_items:
@@ -220,6 +225,7 @@
   tags: [ "Grill" ]
   purchase_items:
     - description: "%OIL SPRAYPAM%"
+    - description: "%OIL PAM%"
 - name: "Ketchup Packets"
   tags: [ "Condiments" ]
   purchase_items:
@@ -240,23 +246,28 @@
   purchase_items:
     - description: "%PD LETTUCE%"
 - name: "Peppers"
-  tags: [ "Produce", "Meatball on a Stick"] ???
+  tags: [ "Produce", "Meatball on a Stick", "The Dirty Dog"]
   purchase_items:
     - description: "%PD MIX PEPPER%"
     - description: "%PD PEPPER%"
     - description: "%PD PEPP%"
     - description: "%PD RED PEPPER%"
+- name : "Burgers"
+  tags: [ "Beef Burgers", "Turkey Burgers", "Crab Burgers" ]
+- name: "Crab Burger"
+  tags: [ "Beef Crab Burger", "Turkey Crab Burger" ]
 - name: "Red Onions"
-  tags: [ "Produce" ] ???
+  tags: [ "Produce", "The Dirty Dog", "Jerked Chicken Rolls" ]
   purchase_items:
     - description: "%ONION RED%"
 - name: "Yellow Onions"
-  tags: [ "Produce" ] ???
+  tags: [ "Produce", "Jerked Chicken Sandwichh", "Cheesesteak Rolls", "Brisket", "Burgers", "The Uncle Frank" ]
   purchase_items:
     - description: "%ONION YELLOW%"
     - description: "%ONIONS COLOSSAL%"
+    - description: "%PD ONI SPSH%"
 - name: "Jalapenos"
-  tags: [ "Brisket", "Brisket Fries" ] ???
+  tags: [ "Brisket", "Brisket Fries", "The Dirty Dog", "Jerked Chicken Sandwich" ]
   purchase_items:
     - description: "%PEPP JALA%"
 - name: "Rib Meat"
@@ -264,11 +275,11 @@
   purchase_items:
     - description: "%RIB%"
 - name: "Relish"
-  tags: [ "Condiments" ]
+  tags: [ "Condiments", "Dogs" ]
   purchase_items:
     - description: "%RELISH%"
 - name: "BBQ Sauce"
-  tags: [ "Condiments", ] ???
+  tags: [ "Condiments", "Brisket", "Jerked Chicken Sandwich" ]
   purchase_items:
     - description: "%SAUC BBQ%"
 - name: "Buffalo Sauce"
@@ -276,18 +287,14 @@
   purchase_items:
     - description: "%SAUC BUFF%"
 - name: "Cheddar Cheese Sauce"
-  tags: [ "" ] ???
+  tags: [ "Brisket Fries", "The Dirty Dog", "Chili Cheese Fries", "Chili Cheese Dog", "Cheese Fries" ]
   purchase_items:
     - description: "%SAUC MLD Cheddar%"
     - description: "%SAUC NACHO%"
 - name: "Mumbo"
-  tags: [ "" ] ???
+  tags: [ "" ]
   purchase_items:
     - description: "%SAUC MUMBO%"
-- name: "Half Smokes"
-  tags: [ "" ] ???
-  purchase_items:
-    - description: "%SAUSAGE BF%"
 - name: "Wipes"
   tags: [ "Supplies", "Cleaning" ]
   purchase_items:
@@ -305,7 +312,7 @@
   purchase_items:
     - description: "%SOFTSOAP%"
 - name: "Sour Cream"
-  tags: [ "Condiments", "Brisket Fries" ] ???
+  tags: [ "Condiments", "Brisket Fries" ]
   purchase_items:
     - description: "%SOUR CREAM%"
 - name: "Black Pepper"
@@ -338,10 +345,10 @@
   purchase_items:
     - description: "%PAPRKA%"
 - name: "Red Crushed Peppers"
-  tags: [ "Seasoning" ] ???
+  tags: [ "Seasoning", "Crab Fries", "Cheesesteak Rolls" ]
   purchase_items:
     - description: "%RED PEP CRSH%"
-    - - description: "%RED CRUSH%"
+    - description: "%RED CRUSH%"
 - name: "Everything Bagel"
   tags: [ "Seasoning" ]
   purchase_items:
@@ -376,7 +383,7 @@
   tags: [ "Supplies", "Cleaning" ]
   purchase_items:
     - description: "%TOWEL%"
-    - exclude: [ "%TOWEL C-FOLD%", "%TOWEL MULFOLDWH%" ]
+    - exclusions: [ "%TOWEL C-FOLD%", "%TOWEL MULFOLDWH%" ]
 - name: "Hand Towels"
   tags: [ "Supplies", "Cleaning" ]
   purchase_items:
@@ -386,3 +393,16 @@
   tags: [ "Turkey Burgers" ]
   purchase_items:
     - description: "%TURKEY GRND%"
+- name: "Trash Bags"
+  tags: [ "Supplies", "Cleaning" ]
+  purchase_items:
+    - description: "%LINERß%"
+- name: "Tomato"
+  tags: [ "Produce", "Burgers" ]
+  purchase_items:
+    - description: "%TOMATO%"
+    - description: "%TOMATOES%"
+- name: "Ice"
+  tags: [ "Drinks" ]
+  purchase_items:
+    - description: "%ICE%"

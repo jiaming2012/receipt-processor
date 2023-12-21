@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Error if the env PROJECT_DIR is not set
+if [ -z "$PROJECT_DIR" ]
+then
+  echo "Error: PROJECT_DIR is not set"
+  exit 1
+fi
+
+# This script is used to setup purchase_item_groups table
+
+# export DATABASE_URL="host=infra.a.pinggy.online user=myuser password=test123 dbname=mydb port=21996 sslmode=disable TimeZone=UTC"
+
+export DATABASE_URL="host=192.168.1.160 user=myuser password=test123 dbname=mydb port=5432 sslmode=disable TimeZone=UTC"
+ß
+go run $PROJECT_DIR/cmd/main_process_toast.go

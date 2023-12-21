@@ -1,31 +1,38 @@
 package utils
 
 import (
-	"jiaming2012/receipt-processor/database"
-	"jiaming2012/receipt-processor/models"
+	"os"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 )
 
-func SetupDB() {
-	log.Info("Setting up database ...")
-	if err := database.Setup(); err != nil {
-		log.Errorf("failed to setup database: %v", err)
-		return
+func MoveFileToDirectory(fullFilePathToMove string, newDirectory string) error {
+	// Get the full path of the csvFile
+	fullPath, err := filepath.Abs(fullFilePathToMove)
+	if err != nil {
+		return err
 	}
-	db := database.GetDB()
-	defer database.ReleaseDB()
 
-	db.AutoMigrate(&models.ToastOrderDetail{})
-	db.AutoMigrate(&models.Store{})
-	db.AutoMigrate(&models.MetaV2{})
-	db.AutoMigrate(&models.PurchaseV2{})
-	db.AutoMigrate(&models.PurchaseItem{})
-	db.AutoMigrate(&models.ToastItemSelectionDetail{})
-	db.AutoMigrate(&models.MenuItem{})
-	db.AutoMigrate(&models.PurchaseItemGroup{})
-	db.AutoMigrate(&models.PurchaseItem{})
-	db.AutoMigrate(&models.Tag{})
+	// Get the full path of the new directory
+	newDirFullPath, err := filepath.Abs(newDirectory)
+	if err != nil {
+		return err
+	}
 
-	log.Info("Db setup complete!")
+	// Create the new directory if it doesn't exist
+	if _, err := os.Stat(newDirFullPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(newDirFullPath, 0755); err != nil {
+			return err
+		}
+	}
+
+	// Move the file to the new directory
+	newFilePath := filepath.Join(newDirFullPath, filepath.Base(fullPath))
+	if err := os.Rename(fullPath, newFilePath); err != nil {
+		return err
+	}
+
+	log.Infof("Moved %s to %s", fullPath, newFilePath)
+	return nil
 }

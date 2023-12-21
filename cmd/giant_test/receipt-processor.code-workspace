@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"name": "receipt-processor",
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"files.autoSave": "onWindowChange"
+	}
+}

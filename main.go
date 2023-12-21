@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"jiaming2012/receipt-processor/database"
-	"jiaming2012/receipt-processor/models"
 	"math"
 	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"jiaming2012/receipt-processor/database"
+	"jiaming2012/receipt-processor/models"
 )
 
 func printArray(data []string) string {

@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"jiaming2012/receipt-processor/database"
-	"jiaming2012/receipt-processor/models"
-	"jiaming2012/receipt-processor/utils"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,6 +16,9 @@ import (
 	"github.com/gocarina/gocsv"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+
+	"jiaming2012/receipt-processor/database"
+	"jiaming2012/receipt-processor/models"
 )
 
 func setTimeToStartOfDay(t time.Time) time.Time {
@@ -406,6 +406,29 @@ func handleToastOrderDetail(path string, db *gorm.DB) error {
 	return err
 }
 
+func setupDB() {
+	log.Info("Setting up database ...")
+	if err := database.Setup(); err != nil {
+		log.Errorf("failed to setup database: %v", err)
+		return
+	}
+	db := database.GetDB()
+	defer database.ReleaseDB()
+
+	db.AutoMigrate(&models.ToastOrderDetail{})
+	db.AutoMigrate(&models.Store{})
+	db.AutoMigrate(&models.MetaV2{})
+	db.AutoMigrate(&models.PurchaseV2{})
+	db.AutoMigrate(&models.PurchaseItem{})
+	db.AutoMigrate(&models.ToastItemSelectionDetail{})
+	db.AutoMigrate(&models.MenuItem{})
+	db.AutoMigrate(&models.PurchaseItemGroup{})
+	db.AutoMigrate(&models.PurchaseItem{})
+	db.AutoMigrate(&models.Tag{})
+
+	log.Info("Db setup complete!")
+}
+
 // for each file, parse the csv data using gocsv
 // upsert each record into the database
 // move the file to receipts/processed/toast
@@ -426,7 +449,7 @@ func main() {
 		panic(err)
 	}
 
-	utils.SetupDB()
+	setupDB()
 
 	db := database.GetDB()
 	defer database.ReleaseDB()
@@ -439,12 +462,17 @@ func main() {
 	}
 
 	// iterate all files in receipts/unprocessed/toast
-	iterateFiles("receipts/unprocessed/toast", func(path string) error {
+	err = iterateFiles("receipts/unprocessed/toast", func(path string) error {
 		log.Info("Processing file: ", path)
 
 		filePrefix := strings.Split(filepath.Base(path), "_")
 
 		if len(filePrefix) > 0 {
+			// skip hidden files
+			if strings.HasPrefix(filePrefix[0], ".") {
+				return nil
+			}
+
 			switch filePrefix[0] {
 			case "OrderDetails":
 				return handleToastOrderDetail(path, db)
@@ -457,4 +485,8 @@ func main() {
 
 		return nil
 	})
+
+	if err != nil {
+		panic(err)
+	}
 }

@@ -73,6 +73,12 @@ func (date *DateTimeEST) UnmarshalCSV(csv string) (err error) {
 	}
 
 	date.Time, err = time.ParseInLocation("1/2/06 3:04 PM", csv, est)
+
+	var parseError *time.ParseError
+	if errors.As(err, &parseError) {
+		date.Time, err = time.ParseInLocation("1/2/06 15:04", csv, est)
+	}
+
 	return err
 }
 
