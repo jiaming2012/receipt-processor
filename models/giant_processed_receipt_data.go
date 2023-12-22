@@ -1,11 +1,8 @@
 package models
 
-import (
-	"time"
+import "time"
 
-	service_models "jiaming2012/receipt-processor/services/models"
-)
-
+// GiantProcessedReceiptData implements ProcessedReceiptData
 type GiantProcessedReceiptData struct {
 	StoreName   string
 	Address     string
@@ -15,7 +12,7 @@ type GiantProcessedReceiptData struct {
 	TaxAmount   float64
 	PaymentType string
 	CardLast4   string
-	Items       []service_models.ReceiptPurchaseItem
+	Items       []ReceiptPurchaseItem
 }
 
 func (g GiantProcessedReceiptData) GetStoreName() string {
@@ -50,6 +47,6 @@ func (g GiantProcessedReceiptData) GetCardLast4() string {
 	return g.CardLast4
 }
 
-func (g GiantProcessedReceiptData) GetPurchaseItems() []service_models.ReceiptPurchaseItem {
+func (g GiantProcessedReceiptData) GetPurchaseItems() []ReceiptPurchaseItem {
 	return g.Items
 }

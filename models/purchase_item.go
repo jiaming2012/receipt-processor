@@ -5,6 +5,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// deprecated
+
 type SKU string
 
 type Description string
@@ -12,7 +14,7 @@ type Description string
 type PurchaseItem struct {
 	gorm.Model
 	SKU                SKU                  `gorm:"uniqueIndex:compositeItem;not null"`
-	Description        Description          `gorm:"not null"`
+	Description        Description          `gorm:"uniqueIndex:compositeItem;not null"`
 	StoreId            uint                 `gorm:"uniqueIndex:compositeItem;not null"`
 	PurchaseItemGroups []*PurchaseItemGroup `gorm:"many2many:purchase_item_group_purchase_items;"`
 }

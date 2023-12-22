@@ -5,6 +5,7 @@ import "fmt"
 type ReceiptPurchaseItem struct {
 	Sku         string
 	Description string
+	UnitPrice   *string
 	Price       float64
 	Quantity    float64
 	IsCase      bool

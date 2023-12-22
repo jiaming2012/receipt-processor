@@ -3,3 +3,4 @@ receipts/
 .vscode/
 .DS_Store
 gcloud_secret.json
+**__debug**

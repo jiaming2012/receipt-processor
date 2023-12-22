@@ -3,10 +3,10 @@ package services
 import (
 	"fmt"
 
-	service_models "jiaming2012/receipt-processor/services/models"
+	"jiaming2012/receipt-processor/models"
 )
 
-func fetchStoreName(receiptData service_models.ProcessedReceiptData) (string, error) {
+func fetchStoreName(receiptData models.ProcessedReceiptData) (string, error) {
 	// Fetch the store name
 	storeName := receiptData.GetStoreName()
 	if storeName == "" {

@@ -2,23 +2,25 @@ package models
 
 import (
 	"fmt"
-	"jiaming2012/receipt-processor/custom"
 	"regexp"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+
+	"jiaming2012/receipt-processor/custom"
 )
 
 type PurchaseV2 struct {
 	gorm.Model
-	IsCase   bool    `gorm:"not null"`
-	Price    float64 `gorm:"not null"`
-	Quantity int     `gorm:"not null"`
-	MetaId   uint    `gorm:"not null"`
-	ItemId   uint    `gorm:"not null"`
-	Position uint    `gorm:"not null"`
+	IsCase    bool    `gorm:"not null"`
+	Price     float64 `gorm:"not null"`
+	Quantity  int     `gorm:"not null"`
+	MetaId    uint    `gorm:"not null"`
+	ItemId    uint    `gorm:"not null"`
+	Position  uint    `gorm:"not null"`
+	UnitPrice *string
 }
 
 func (p PurchaseV2) AsMap() map[string]interface{} {

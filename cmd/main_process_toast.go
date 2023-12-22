@@ -290,7 +290,7 @@ func processRestaurantDepotReceipts(db *gorm.DB) error {
 			return fmt.Errorf("failed to unmarshal csv data: %v", err)
 		}
 
-		meta, err := models.FindOrCreateMeta(store, timestamp, subtotal, tax, db)
+		meta, err := models.FindOrCreateMetaV2(store, timestamp, subtotal, tax, db)
 		if err != nil {
 			return fmt.Errorf("failed to find or create meta: %v", err)
 		}
